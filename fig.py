@@ -16,7 +16,7 @@ def res():
     plt.title('Accuracy on four datasets')
     plt.show()
 
-def count():
+def count(train_mask, val_mask, test_mask):
     train_mask = np.loadtxt('./onehotdata4000/train_mask.txt')
     val_mask = np.loadtxt('./onehotdata4000/val_mask.txt')
     test_mask = np.loadtxt('./onehotdata4000/test_mask.txt')
@@ -35,5 +35,8 @@ def count():
     print(tr)
     print(va)
     print(te)
+def lr():
+    # learning rate: 0.01
+    accuracy = [0.59793]
 
-count()
+res()

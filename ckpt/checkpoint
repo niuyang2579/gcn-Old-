@@ -1,2 +1,2 @@
-model_checkpoint_path: "model20190505_160937.ckpt"
-all_model_checkpoint_paths: "model20190505_160937.ckpt"
+model_checkpoint_path: "model20190813_223342.ckpt"
+all_model_checkpoint_paths: "model20190813_223342.ckpt"
