@@ -121,28 +121,73 @@ def train():
     print("Test set results:", "cost=", "{:.5f}".format(test_cost),
           "accuracy=", "{:.5f}".format(test_acc), "time=", "{:.5f}".format(test_duration))
 
+
     # print("features:",features)
     # np.savetxt('./dataana/test_result_cite.txt', test_result)
     # print("test_result:", test_result)
+
+def npyprint():
+    weight = np.load('weights.npy', encoding='latin1', allow_pickle=True).item()
+    np.set_printoptions(threshold=np.inf)
+    with open("./weights.txt", "w") as f:
+        print(weight, file=f)
 
 def load_paramters(sess, weight, var_list):
     for var in var_list:
         print(var)
         sess.run(tf.assign(var, weight[var.name]))
     # a = raw_input()
-    print(sess.run('gcn/graphconvolution_1_vars/weights_0:0'))
+    # print(sess.run('gcn/graphconvolution_1_vars/weights_0:0'))
 
-def evaluate():
+def val():
     adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask = preproc.datapre()
 
-    for x in tf.global_variables():
-        print(x)
+    # Some preprocessing
+    features = preprocess_features(features)
+    if FLAGS.model == 'gcn':
+        support = [preprocess_adj(adj)]
+        num_supports = 1
+        model_func = GCN
+    elif FLAGS.model == 'gcn_cheby':
+        support = chebyshev_polynomials(adj, FLAGS.max_degree)
+        num_supports = 1 + FLAGS.max_degree
+        model_func = GCN
+    elif FLAGS.model == 'dense':
+        support = [preprocess_adj(adj)]  # Not used
+        num_supports = 1
+        model_func = MLP
+    else:
+        raise ValueError('Invalid argument for model: ' + str(FLAGS.model))
+
+    # Define placeholders
+    placeholders = {
+        'support': [tf.sparse_placeholder(tf.float32) for _ in range(1)],
+        'features': tf.sparse_placeholder(tf.float32, shape=tf.constant(features[2], dtype=tf.int64)),
+        'labels': tf.placeholder(tf.float32, shape=(None, y_train.shape[1])),
+        'labels_mask': tf.placeholder(tf.int32),
+        'dropout': tf.placeholder_with_default(0., shape=()),
+        'num_features_nonzero': tf.placeholder(tf.int32)  # helper variable for sparse dropout
+    }
+
+    # Create model
+    model = GCN(placeholders, input_dim=features[2][1], logging=True)
+
+    # Define model evaluation function
+    def evaluate(features, support, labels, mask, placeholders):
+        t_test = time.time()
+        feed_dict_val = construct_feed_dict(features, support, labels, mask, placeholders)
+        outs_val = sess.run([model.loss, model.accuracy, model.outputs], feed_dict=feed_dict_val)
+        return outs_val[0], outs_val[1], outs_val[2], (time.time() - t_test)
+
     with tf.Session() as sess:
         tf.global_variables_initializer().run()
-        saver = tf.train.Saver()
-        saver.restore(sess, "ckpt/model20190609_190518.ckpt")
-        weight = np.load('weights.npy', encoding='latin1').item()
+        # saver = tf.train.Saver()
+        # saver.restore(sess, "ckpt/model20190609_190518.ckpt")
+        weight = np.load('weights.npy', encoding='latin1', allow_pickle=True).item()
         load_paramters(sess, weight, tf.global_variables())
 
-        coord = tf.train.Coordinator()
-evaluate()
+        test_cost, test_acc, test_result, test_duration = evaluate(features, support, y_test, test_mask, placeholders)
+        print("Test set results:", "cost=", "{:.5f}".format(test_cost),
+              "accuracy=", "{:.5f}".format(test_acc), "time=", "{:.5f}".format(test_duration))
+
+val()
