@@ -17,7 +17,27 @@ tf.set_random_seed(seed)
 # Settings
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_string('dataset', 'citeseer', 'Dataset string.')  # 'cora', 'citeseer', 'pubmed'
+
+# 0 cora
+# 1 citeseer
+# 2 pubmed
+# 3 soc-pokec
+
+ds = 3
+args_name = "1layerSocpokec"
+# if ds == 0:
+#     args_name = "1layerCora"
+#     flags.DEFINE_string('dataset', 'cora', 'Dataset string.')  # 'cora', 'citeseer', 'pubmed'
+# elif ds == 1:
+#     args_name = "1layerCiteseer"
+#     flags.DEFINE_string('dataset', 'citeseer', 'Dataset string.')  # 'cora', 'citeseer', 'pubmed'
+# elif ds == 2:
+#     args_name = "1layerPubmed"
+#     flags.DEFINE_string('dataset', 'pubmed', 'Dataset string.')  # 'cora', 'citeseer', 'pubmed'
+# else:
+#     print("no dataset")
+
+# flags.DEFINE_string('dataset', 'citeseer', 'Dataset string.')  # 'cora', 'citeseer', 'pubmed'
 flags.DEFINE_string('model', 'gcn', 'Model string.')  # 'gcn', 'gcn_cheby', 'dense'
 flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
 flags.DEFINE_integer('epochs', 200, 'Number of epochs to train.')
@@ -29,7 +49,12 @@ flags.DEFINE_integer('max_degree', 3, 'Maximum Chebyshev polynomial degree.')
 
 def train():
     # Load data   ['x', 'y', 'tx', 'ty', 'allx', 'ally', 'graph']
-    # adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask = load_data(FLAGS.dataset)
+    # if ds == 0 or 1 or 2:
+    #     adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask = load_data(FLAGS.dataset)
+    # elif ds == 3:
+    #     adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask = preproc.datapre()
+    # else:
+    #     return
     adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask = preproc.datapre()
     # adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask = preproc.input_data(200, range(1001,1490))
 
@@ -81,6 +106,12 @@ def train():
 
     cost_val = []
 
+    f_log = open(r'result.log', 'a')
+
+    print(ds, args_name, file=f_log)
+    print(ds, args_name)
+
+    train_time = 0
     # Train model
     for epoch in range(FLAGS.epochs):
 
@@ -99,19 +130,24 @@ def train():
         # Print results
         print("Epoch:", '%04d' % (epoch + 1), "train_loss=", "{:.5f}".format(outs[1]),
               "train_acc=", "{:.5f}".format(outs[2]), "val_loss=", "{:.5f}".format(cost),
+              "val_acc=", "{:.5f}".format(acc), "time=", "{:.5f}".format(time.time() - t), file=f_log)
+        print("Epoch:", '%04d' % (epoch + 1), "train_loss=", "{:.5f}".format(outs[1]),
+              "train_acc=", "{:.5f}".format(outs[2]), "val_loss=", "{:.5f}".format(cost),
               "val_acc=", "{:.5f}".format(acc), "time=", "{:.5f}".format(time.time() - t))
+
+        train_time += (time.time() - t)
 
         if epoch > FLAGS.early_stopping and cost_val[-1] > np.mean(cost_val[-(FLAGS.early_stopping+1):-1]):
             print("Early stopping...")
             break
 
-    saver.save(sess, './ckpt/model'+datetime.datetime.now().strftime('%Y%m%d_%H%M%S')+'.ckpt')
+    # saver.save(sess, './ckpt/model'+datetime.datetime.now().strftime('%Y%m%d_%H%M%S')+'.ckpt')
     model_npy = {}
     for x in tf.global_variables():
         print(x.name)
         model_npy[x.name] = sess.run(x.name)
     print(len(model_npy))
-    np.save('./weights', model_npy)
+    np.save('./args/'+args_name, model_npy)
 
     # reader = tf.train.NewCheckpointReader('./model/model'+datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
     print("Optimization Finished!")
@@ -119,9 +155,16 @@ def train():
     # Testing
     test_cost, test_acc, test_result, test_duration = evaluate(features, support, y_test, test_mask, placeholders)
     print("Test set results:", "cost=", "{:.5f}".format(test_cost),
+          "accuracy=", "{:.5f}".format(test_acc), "time=", "{:.5f}".format(test_duration), file=f_log)
+    print("Test set results:", "cost=", "{:.5f}".format(test_cost),
           "accuracy=", "{:.5f}".format(test_acc), "time=", "{:.5f}".format(test_duration))
 
+    print("train time:", train_time, file=f_log)
+    print("finished!", file=f_log)
+    print("train time:", train_time)
+    print("finished!")
 
+    f_log.close()
     # print("features:",features)
     # np.savetxt('./dataana/test_result_cite.txt', test_result)
     # print("test_result:", test_result)
@@ -140,7 +183,13 @@ def load_paramters(sess, weight, var_list):
     # print(sess.run('gcn/graphconvolution_1_vars/weights_0:0'))
 
 def val():
-    adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask = preproc.datapre()
+    # Load data   ['x', 'y', 'tx', 'ty', 'allx', 'ally', 'graph']
+    if ds == 0 or 1 or 2:
+        adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask = load_data(FLAGS.dataset)
+    elif ds == 3:
+        adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask = preproc.datapre()
+    else:
+        return
 
     # Some preprocessing
     features = preprocess_features(features)
@@ -183,11 +232,11 @@ def val():
         tf.global_variables_initializer().run()
         # saver = tf.train.Saver()
         # saver.restore(sess, "ckpt/model20190609_190518.ckpt")
-        weight = np.load('weights.npy', encoding='latin1', allow_pickle=True).item()
+        weight = np.load('yinwen2-0.1(1).npy', encoding='latin1', allow_pickle=True).item()
         load_paramters(sess, weight, tf.global_variables())
 
         test_cost, test_acc, test_result, test_duration = evaluate(features, support, y_test, test_mask, placeholders)
         print("Test set results:", "cost=", "{:.5f}".format(test_cost),
               "accuracy=", "{:.5f}".format(test_acc), "time=", "{:.5f}".format(test_duration))
 
-val()
+train()
